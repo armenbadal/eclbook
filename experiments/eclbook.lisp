@@ -7,7 +7,7 @@
 ;;;;
 
 ;;;
-;;; Կարդալ մեկ markdown ֆայլ։
+;;; Կարդալ մեկ markdown ֆայլ
 ;;;
 (defun read-all-lines (sm rs)
   (let ((line (read-line sm nil nil)))
@@ -29,7 +29,9 @@
 (defun string-ends-with (str suf)
     (string-equal (subseq str (- (length str) (length suf))) suf))
 
-
+;;;
+;;; Կառուցել markdown օբյեկտները
+;;;
 (defun create-header (line)
   (let ((p (position-if #'(lambda (c) (char-not-equal c #\#))
                         (string-trim " " line))))
@@ -52,42 +54,98 @@
 (defun create-paragraph (line)
   (list :p (string-trim "" line)))
 
-(defun paragraph-p (line)
-  (eq :p (car line)))
 
-(defun join-first-two-items (lines)
-  (let ((one (first lines))
-        (two (second lines)))
-    (if (eq (car one) (car two))
-        (cons (list (car one) (format nil "~a ~a" (cadr one) (cadr two)))
-              (cddr lines))
-        lines)))
-   
-(defun join-paragraphs (lines)
-  (if (endp lines)
-      '()
-      (if (and (paragraph-p (car lines)) (paragraph-p (cadr lines)))
-          (join-paragraphs (join-first-two-items lines))
-          (cons (car lines) (join-paragraphs (cdr lines))))))
-
-(defun categorize-one-line (line)
+;;;
+;;; Միավորել նման օբյեկտները
+;;;
+(defun join-items (lines type joiner)
   (cond
-    ((zerop (length line))
-     (list :e ""))
-    ((char-equal #\# (char line 0))
-     (create-header line))
-    ((char-equal #\> (char line 0))
-     (create-quote line))
-    ((string-starts-with line "[^")
-     (create-reference line))
-    ((string-ends-with line "  ")
-     (create-verse line))
-    (t (create-paragraph line))))
+    ((endp lines)
+     '())
+    ((and (eq type (caar lines)) (eq type (caadr lines)))
+     (join-items (funcall joiner lines) type joiner))
+    (t (cons (car lines) (join-items (cdr lines) type joiner)))))
+(defun join-two-paragraphs (lines)
+  (cons (list :p (format nil "~a ~a" (cadar lines) (cadadr lines)))
+        (cddr lines)))
+(defun join-two-verses (lines)
+  (cons (append '(:v) (cdar lines) (cdadr lines))
+        (cddr lines)))
 
+(defun remove-empty-lines (lines)
+  (delete-if #'(lambda (e) (eq :e (car e))) lines))
+
+;;;
+;;; Որոշել տողի կատեգորիան
+;;;
+(defun categorize-one-line (line)
+  (let ((eline (string-left-trim " " line)))
+    (cond
+      ((zerop (length eline))
+       (list :e ""))
+      ((char-equal #\# (char eline 0))
+       (create-header eline))
+      ((char-equal #\> (char eline 0))
+       (create-quote eline))
+      ((string-starts-with eline "[^")
+       (create-reference eline))
+      ((string-ends-with eline "  ")
+       (create-verse eline))
+      (t (create-paragraph eline)))))
 (defun categorize-lines (content)
   (cons (car content)
-        (mapcar #'(lambda (e) (categorize-one-line (string-left-trim " " e)))
+        (mapcar #'(lambda (e) (categorize-one-line e))
                 (cdr content))))
+
+
+;;;
+;;; Կառուցել HTML տեքստը
+;;;
+(defun replace-with (line rpl start end)
+  (concatenate 'string (subseq line 0 start) rpl (subseq line end)))
+
+(defun process-one-markup (line be en mf)
+  (let ((b (search be line)))
+    (if (null b)
+        (values nil line)
+        (let ((e (search en line :start2 (+ (length be) b))))
+          (if (null e)
+              (error "Unmatched markup.")
+              (let ((ss (funcall mf (subseq line (+ b (length be)) e))))
+                (values t (replace-with line ss b (+ e (length en))))))))))
+
+(defun process-markup (line be en mf)
+  (multiple-value-bind (cn mln)
+      (process-one-markup line be en mf)
+    (if cn (process-markup mln be en mf) line)))
+
+(defun process-bold (line)
+  (process-markup line "__" "__" #'(lambda (e) (format nil "<b>~a</b>" e))))
+
+(defun process-italic (line)
+  (process-markup line "_" "_" #'(lambda (e) (format nil "<i>~a</i>" e))))
+
+(defun process-reference (line)
+  (process-markup line "[^" "]" #'(lambda (e) (format nil "<sup><small><a href='~a'>~a</a></small></sup>" e e))))
+
+(defun convert-line-to-html (line)
+  (process-reference (process-italic (process-bold line))))
+
+
+#|
+(defun convert-heading (type text)
+  text)
+
+(defun convert-one-item (item)
+  (let ((type (car item))
+        (text (cadr item)))
+    (cond
+      ((member type '(:h1 :h2 :h3 :h4))
+       (convert-heading type text))
+      ((eq :p type)
+       (convert-paragraph text))
+|#
+
 
 
 
@@ -97,16 +155,13 @@
 ;;; TEST
 ;;;
 (mapc #'print
- ;(delete-if #'(lambda (e) (eq :empty (car e)))
- ;           (join-paragraphs
-             (categorize-lines
-              (read-markdown-file "case00.md")
-              )
- ;            )
- ;           )
- )
+  (remove-empty-lines
+    (join-items (join-items
+      (categorize-lines (read-markdown-file "case00.md"))
+      :p #'join-two-paragraphs) :v #'join-two-verses)
+  )
+)
 
 
 
 (terpri)(quit)
-
