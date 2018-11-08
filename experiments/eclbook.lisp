@@ -39,7 +39,7 @@
           (ew (string-trim " " (subseq line p))))
       (list (nth (1- sh) '(:h1 :h2 :h3 :h4)) ew))))
 
-(defun create-quote (line)
+(defun create-quoting (line)
   (list :q line))
 
 (defun create-verse (line)
@@ -86,7 +86,7 @@
       ((char-equal #\# (char eline 0))
        (create-header eline))
       ((char-equal #\> (char eline 0))
-       (create-quote eline))
+       (create-quoting eline))
       ((string-starts-with eline "[^")
        (create-reference eline))
       ((string-ends-with eline "  ")
@@ -128,27 +128,28 @@
 (defun process-reference (line)
   (process-markup line "[^" "]" #'(lambda (e) (format nil "<sup><small><a href='~a'>~a</a></small></sup>" e e))))
 
-(defun convert-line-to-html (line)
+(defun process-text (line)
   (process-reference (process-italic (process-bold line))))
 
 
-#|
-(defun convert-heading (type text)
-  text)
+;;;
+;;; create HTML objects
+;;;
+(defun create-html-header (hdr)
+  (let ((id (map 'string #'(lambda (c) (if (char-equal #\Space c) #\- c))
+                 (string-downcase (cadr hdr))))
+        (ty (string-downcase (symbol-name (car hdr)))))
+    (list (car hdr) id (format nil "<~a id='~a'>~a</~a>" ty id (cadr hdr) ty))))
 
-(defun convert-one-item (item)
-  (let ((type (car item))
-        (text (cadr item)))
-    (cond
-      ((member type '(:h1 :h2 :h3 :h4))
-       (convert-heading type text))
-      ((eq :p type)
-       (convert-paragraph text))
-|#
+(defun create-html-paragraph (par)
+  (cons :p (process-text (cadr par))))
 
+(defun create-html-verse (ver)
+  (list :v (format nil "<div style='verse'>~%~{~a<br/>~%~}</div>"
+                  (mapcar #'process-text (cdr ver)))))
 
-
-
+(defun create-html-quoting (quo)
+  (list :q (format nil "<blockquote>~a</blockquote>" (cadr quo))))
 
 
 ;;;

@@ -1,9 +1,9 @@
 
 (defconstant +test-cases-0+
-  '("# Վերնագիր 1"
-    "##   Վերնագիր 2"
-    "###Վերնագիր 3"
-    "#### Վերնագիր 4"))
+  '("# Title 1"
+    "##  Title 2"
+    "###Title 3"
+    "#### Title 4"))
 
 (defun create-header (line)
   (let ((p (position-if #'(lambda (c) (char-not-equal c #\#))
@@ -12,8 +12,15 @@
           (ew (string-trim " " (subseq line p))))
       (list (nth (1- sh) '(:h1 :h2 :h3 :h4)) ew))))
 
-;;;(mapc #'(lambda (c) (print (create-header c))) +test-cases-0+)
+(defun create-html-header (hdr)
+  (let ((id (map 'string #'(lambda (c) (if (char-equal #\Space c) #\- c))
+                 (string-downcase (cadr hdr))))
+        (ty (string-downcase (symbol-name (car hdr)))))
+    (list (car hdr) id (format nil "<~a id='~a'>~a</~a>" ty id (cadr hdr) ty))))
 
+(mapc #'(lambda (c) (print (create-html-header (create-header c)))) +test-cases-0+)
+
+(terpri)(quit)
 
 (defconstant +test-cases-1+
   '("[^1]: տեքստ տեքստ տեքստ։"
