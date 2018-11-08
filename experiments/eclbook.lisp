@@ -1,15 +1,34 @@
+;;;;
+;;;;
+;;;;
+;;;;
+;;;;
+;;;;
+;;;;
 
-(defvar *contents* '())
-
+;;;
+;;; Կարդալ մեկ markdown ֆայլ։
+;;;
 (defun read-all-lines (sm rs)
   (let ((line (read-line sm nil nil)))
     (if (null line)
         rs
         (read-all-lines sm (cons line rs)))))
-
 (defun read-markdown-file (filename)
-  (with-open-file (sinp filename :direction :input)
-    (nreverse (read-all-lines sinp '()))))
+  (let* ((src (pathname filename))
+         (dest (make-pathname :defaults src :type "html")))
+    (with-open-file (sinp src :direction :input)
+      (cons (list :markdown src :html dest)
+            (nreverse (read-all-lines sinp '()))))))
+
+;;;
+;;;
+;;;
+(defun string-starts-with (str pre)
+    (string-equal (subseq str 0 (length pre)) pre))
+(defun string-ends-with (str suf)
+    (string-equal (subseq str (- (length str) (length suf))) suf))
+
 
 (defun create-header (line)
   (let ((p (position-if #'(lambda (c) (char-not-equal c #\#))
@@ -19,10 +38,16 @@
       (list (nth (1- sh) '(:h1 :h2 :h3 :h4)) ew))))
 
 (defun create-quote (line)
-  (list :quote line))
+  (list :q line))
+
+(defun create-verse (line)
+  (list :v (string-trim " " line)))
 
 (defun create-reference (line)
-  (list :ref line))
+  (let ((b (position #\^ line))
+        (e (position #\] line)))
+    (list :r (subseq line (1+ b) e)
+          (string-trim " " (subseq line (+ 2 e))))))
 
 (defun create-paragraph (line)
   (list :p (string-trim "" line)))
@@ -48,21 +73,21 @@
 (defun categorize-one-line (line)
   (cond
     ((zerop (length line))
-     (list :empty ""))
+     (list :e ""))
     ((char-equal #\# (char line 0))
      (create-header line))
     ((char-equal #\> (char line 0))
      (create-quote line))
-    ((string-equal "[^" (subseq line 0 2))
+    ((string-starts-with line "[^")
      (create-reference line))
+    ((string-ends-with line "  ")
+     (create-verse line))
     (t (create-paragraph line))))
 
-(defun categorize-lines (lines)
-  (mapcar #'(lambda (e) (categorize-one-line (string-left-trim " " e)))
-          lines))
-
-(defun write-html-stream (content filename)
-  nil)
+(defun categorize-lines (content)
+  (cons (car content)
+        (mapcar #'(lambda (e) (categorize-one-line (string-left-trim " " e)))
+                (cdr content))))
 
 
 
@@ -71,11 +96,15 @@
 ;;;
 ;;; TEST
 ;;;
-(print
- (delete-if #'(lambda (e) (eq :empty (car e)))
-            (join-paragraphs
+(mapc #'print
+ ;(delete-if #'(lambda (e) (eq :empty (car e)))
+ ;           (join-paragraphs
              (categorize-lines
-              (read-markdown-file "case00.md")))))
+              (read-markdown-file "case00.md")
+              )
+ ;            )
+ ;           )
+ )
 
 
 
