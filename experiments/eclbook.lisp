@@ -7,17 +7,34 @@
 ;;;;
 
 ;;;
+;;; Որոշել տողի կատեգորիան
+;;;
+(defun categorize-line (line)
+  (let ((eline (string-left-trim " " line)))
+    (cond
+      ((zerop (length eline))
+       (list :e ""))
+      ((char-equal #\# (char eline 0))
+       (create-header eline))
+      ((char-equal #\> (char eline 0))
+       (create-quoting eline))
+      ((string-starts-with eline "[^")
+       (create-reference eline))
+      ((string-ends-with eline "  ")
+       (create-verse eline))
+      (t (create-paragraph eline)))))
+;;;
 ;;; Կարդալ մեկ markdown ֆայլ
 ;;;
 (defun read-all-lines (sm rs)
   (let ((line (read-line sm nil nil)))
     (if (null line)
         rs
-        (read-all-lines sm (cons line rs)))))
+        (read-all-lines sm (cons (categorize-line line) rs)))))
 (defun read-markdown-file (filename)
   (let* ((src (pathname filename))
          (dest (make-pathname :defaults src :type "html")))
-    (with-open-file (sinp src :direction :input)
+    (with-open-file (sinp src :direction :input :external-format :utf-8)
       (cons (list :markdown src :html dest)
             (nreverse (read-all-lines sinp '()))))))
 
@@ -75,28 +92,6 @@
 (defun remove-empty-lines (lines)
   (delete-if #'(lambda (e) (eq :e (car e))) lines))
 
-;;;
-;;; Որոշել տողի կատեգորիան
-;;;
-(defun categorize-one-line (line)
-  (let ((eline (string-left-trim " " line)))
-    (cond
-      ((zerop (length eline))
-       (list :e ""))
-      ((char-equal #\# (char eline 0))
-       (create-header eline))
-      ((char-equal #\> (char eline 0))
-       (create-quoting eline))
-      ((string-starts-with eline "[^")
-       (create-reference eline))
-      ((string-ends-with eline "  ")
-       (create-verse eline))
-      (t (create-paragraph eline)))))
-(defun categorize-lines (content)
-  (cons (car content)
-        (mapcar #'(lambda (e) (categorize-one-line e))
-                (cdr content))))
-
 
 ;;;
 ;;; Կառուցել HTML տեքստը
@@ -152,14 +147,25 @@
   (list :q (format nil "<blockquote>~a</blockquote>" (cadr quo))))
 
 
+
+
+
+
+
+
+
+
+
 ;;;
 ;;; TEST
 ;;;
-(mapc #'print
-  (remove-empty-lines
-    (join-items (join-items
-      (categorize-lines (read-markdown-file "case00.md"))
-      :p #'join-two-paragraphs) :v #'join-two-verses)
+(with-open-file (sout "case00.html" :direction :output :if-exists :supersede :external-format :utf-8)
+  (mapc #'(lambda (e) (print e sout))
+    (remove-empty-lines
+      (join-items (join-items
+        (read-markdown-file "case00.md")
+        :p #'join-two-paragraphs) :v #'join-two-verses)
+    )
   )
 )
 
