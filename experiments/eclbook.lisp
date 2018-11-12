@@ -7,38 +7,6 @@
 ;;;;
 
 ;;;
-;;; Որոշել տողի կատեգորիան
-;;;
-(defun categorize-line (line)
-  (let ((eline (string-left-trim " " line)))
-    (cond
-      ((zerop (length eline))
-       (list :e ""))
-      ((char-equal #\# (char eline 0))
-       (create-header eline))
-      ((char-equal #\> (char eline 0))
-       (create-quoting eline))
-      ((string-starts-with eline "[^")
-       (create-reference eline))
-      ((string-ends-with eline "  ")
-       (create-verse eline))
-      (t (create-paragraph eline)))))
-;;;
-;;; Կարդալ մեկ markdown ֆայլ
-;;;
-(defun read-all-lines (sm rs)
-  (let ((line (read-line sm nil nil)))
-    (if (null line)
-        rs
-        (read-all-lines sm (cons (categorize-line line) rs)))))
-(defun read-markdown-file (filename)
-  (let* ((src (pathname filename))
-         (dest (make-pathname :defaults src :type "html")))
-    (with-open-file (sinp src :direction :input :external-format :utf-8)
-      (cons (list :markdown src :html dest)
-            (nreverse (read-all-lines sinp '()))))))
-
-;;;
 ;;;
 ;;;
 (defun string-starts-with (str pre)
@@ -70,6 +38,39 @@
 
 (defun create-paragraph (line)
   (list :p (string-trim "" line)))
+
+;;;
+;;; Որոշել տողի կատեգորիան
+;;;
+(defun categorize-line (line)
+  (let ((eline (string-left-trim " " line)))
+    (cond
+      ((zerop (length eline))
+       (list :e ""))
+      ((char-equal #\# (char eline 0))
+       (create-header eline))
+      ((char-equal #\> (char eline 0))
+       (create-quoting eline))
+      ((string-starts-with eline "[^")
+       (create-reference eline))
+      ((string-ends-with eline "  ")
+       (create-verse eline))
+      (t (create-paragraph eline)))))
+;;;
+;;; Կարդալ մեկ markdown ֆայլ
+;;;
+(defun read-all-lines (sm rs)
+  (let ((line (read-line sm nil nil)))
+    (if (null line)
+        rs
+        (read-all-lines sm (cons (categorize-line line) rs)))))
+(defun read-markdown-file (filename)
+  (let* ((src (pathname filename))
+         (dest (make-pathname :defaults src :type "html")))
+    (with-open-file (sinp src :direction :input)
+      (cons (list :markdown src :html dest)
+            (nreverse (read-all-lines sinp '()))))))
+
 
 
 ;;;
@@ -159,16 +160,15 @@
 ;;;
 ;;; TEST
 ;;;
-(with-open-file (sout "case00.html" :direction :output :if-exists :supersede :external-format :utf-8)
-  (mapc #'(lambda (e) (print e sout))
-    (remove-empty-lines
+(print
+ (remove-empty-lines
       (join-items (join-items
         (read-markdown-file "case00.md")
         :p #'join-two-paragraphs) :v #'join-two-verses)
     )
-  )
 )
 
 
 
 (terpri)(quit)
+
